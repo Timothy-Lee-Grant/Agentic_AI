@@ -14,7 +14,7 @@ messages = [
     },
     {
         'role': 'user',
-        'content': "The user's computer has the following RAM stats:. Explain the computer's health."
+        'content': f"The user's computer has the following RAM stats: {ram_info}. Explain the computer's health."
     }
 ]
 
