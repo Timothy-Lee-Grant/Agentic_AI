@@ -24,6 +24,8 @@ messages = [
 
         {"tool": "get_ram_usage", "arguments": {}} 
 
+        Then after the tool is provided, answer the user's origional question.
+
         4. If no tool needed, answer normally."""
         
     },
@@ -52,6 +54,8 @@ def LooksLikeToolCallNotWorking(content):
             "role", "assistant",
             #"content": f"Error: Unknown tool '{toolName}'. Available tools: {list(TOOLS.keys())}"
         })
+
+#Returns True if content is llm asking for tool
 def LooksLikeToolCall(content):
     try:
         data = json.loads(content)
@@ -71,6 +75,7 @@ def ParseToolCall(content):
 def RunTool(toolName, args):
     return TOOLS[toolName](**args)
 
+
 response = ""
 def main():
     while True:
@@ -79,49 +84,26 @@ def main():
         if userInput == 'q' or userInput == 'quit':
             return
         messages.append({"role": "user", "content": userInput})
-        response = ollama.chat(model='qwen2.5:0.5b', messages=messages)
+        response = ollama.chat(model='qwen2.5:1.5b', messages=messages)
         print(f"Debugging response: {response}")
+        print("")
         content = response['message']['content']
         if LooksLikeToolCall(content):
             toolName, args = ParseToolCall(content)
             result = RunTool(toolName, args)
-
+            print(f"RunTool Result: {result}")
+            print("")
             messages.append({
                 "role": "tool", 
                 "content": result
             })
-            followup = response = ollama.chat(model='qwen2.5:0.5b', messages=messages)
+            followup = response = ollama.chat(model='qwen2.5:1.5b', messages=messages)
             print(followup['message']['content'])
         else:
             print(content)
 
 
 
-
-
-
-'''
-        content = response['message']['content']
-        if LooksLikeToolCall(content):
-            toolName, args = ParseToolCall(content)
-            result = RunTool(toolName, args)
-
-            messages.append({
-                "role": "tool", 
-                "content": result
-            })
-
-            response = ollama.chat(model='qwen2.5:0.5b', messages=messages)
-        else:
-            userInput = input("User Prompt: ")
-            if userInput == 'q' or userInput == 'quit':
-                return
-            messages[1]['content'] = userInput
-            response = ollama.chat(model='qwen2.5:0.5b', messages=messages)
-            print(f"Debugging response: {response}")
-            print(response['message']['content'])
-            #print("\n")
-'''
 
 if __name__ == "__main__":
     main()
