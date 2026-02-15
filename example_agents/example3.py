@@ -14,8 +14,17 @@ messages = [
         'content': """You are an agent that can request tools when needed.
         If you need system RAM information, respond ONLY with a JSON object:
         
+        AVAILABLE TOOLS:
+        - get_ram_usage(): returns RAM usage Information.
+
+        RULES:
+        1. You may ONLY request tools from the AVAILABLE TOOLS list.
+        2. NEVER invent new tools.
+        3. If you need RAM information, respond ONLY with:
+
         {"tool": "get_ram_usage", "arguments": {}} 
-        Do not answer the user until after the tool result is provided."""
+
+        4. If no tool needed, answer normally."""
         
     },
     {
@@ -28,11 +37,26 @@ TOOLS = {
     "get_ram_usage": get_ram_usage
 }
 
-def LooksLikeToolCall(content):
+def LooksLikeToolCallOld(content):
     try: 
         data = json.loads(content) 
         return "tool" in data 
     except: 
+        return False
+
+def LooksLikeToolCallNotWorking(content):
+    toolName, args = ParseToolCall(content)
+    if toolName not in TOOLS:
+        print(f"Model requested unknown tool: {toolName}")
+        messages.append({
+            "role", "assistant",
+            #"content": f"Error: Unknown tool '{toolName}'. Available tools: {list(TOOLS.keys())}"
+        })
+def LooksLikeToolCall(content):
+    try:
+        data = json.loads(content)
+        return isinstance(data, dict) and "tool" in data
+    except json.JSONDecodeError:
         return False
 
 def ParseToolCall(content):
