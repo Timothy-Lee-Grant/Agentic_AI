@@ -27,7 +27,7 @@ messages = [{'role': 'system', 'content': """You are a helpful, friendly AI comp
              1. Talk to the user naturally.
              2. You have access to tools for lights and temperature. Only use them if the user specifically asks about the room environment.
              3. If you use a tool, do not output the JSON yourself. Just let the tool run.
-             4. If you don't have a tool for a request, just answer normall as a AI companion."""}]
+             4. If you don't have a tool for a request, just answer normally as a AI companion."""}]
 while True:
     userInput = input(">>>")
     if userInput.lower() in ['q', 'quit']: break
@@ -35,7 +35,7 @@ while True:
     messages.append({"role": "user", "content": userInput})
 
 
-    response = ollama.chat(model='llama3.1:8b', messages=messages, tools=available_function_ptr, keep_alive=-1)
+    response = ollama.chat(model='llama3.2', messages=messages, tools=available_function_ptr, keep_alive=-1)
     messages.append(response.message)
     if response.message.tool_calls:
         for tool in response.message.tool_calls:
@@ -45,7 +45,7 @@ while True:
 
             messages.append({"role": "tool", "content": toolOutput, "name":tool.function.name})
 
-        response = ollama.chat(model='llama3.1:8b', messages=messages)
+        response = ollama.chat(model='llama3.2', messages=messages)
         print(response.message.content)
         #messages.append({"role": "assistant", "content": response.message.content})
         messages.append(response.message)
