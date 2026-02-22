@@ -43,7 +43,7 @@ tool_determiner_prompt = [{
     }]
 
 messages = [{"role": "system",
-             "content": "You are a friendly AI campainion. Talk with the user in a happy and helpful way."}]
+             "content": "You are a friendly AI companion. Talk with the user in a happy and helpful way."}]
 
 while True:
     userInput = input(">>>")
@@ -53,36 +53,26 @@ while True:
     tool_determiner_prompt[1]["content"] = userInput
     tool_use_llm_response = ollama.chat(model='llama3.2', messages=tool_determiner_prompt, tools=available_function_ptr, keep_alive=-1)
     
+    context_info = ""
     if tool_use_llm_response.message.tool_calls:
         for tool in tool_use_llm_response.message.tool_calls:
             print(f"---- Thinking: I need to use {tool.function.name} ----")
             functionToCall = available_functions[tool.function.name]
-            toolOutput = functionToCall()
-            #possibly we need to adjust this because it might pollute the clean 'message' history with the idea of tools. I want that messge history to not even know tools exist!!!
-            messages.append({"role":"tool","content":toolOutput, "name":tool.function.name}) #do I really need to put that name field and so much information about tool in this clean history??
-    #get response of llm with messages that has no history of any tool knowledge
-    response = ollama.chat(model='llama3.2', messages=messages) #I don't need tools field and I also think keep_alive will continue to be set such that the model remains in ram indefinately from my last ollama call
+            #toolOutput = functionToCall()
+            context_info += f"\n(Internal System Note: {functionToCall()})"
+    
+    messages.append({"role": "user", "content": userInput})
+
+    #semi-dirty message history which will contain 'tool' knowledge, but will not continue to be added to the clean message history
+    temp_messages = messages.copy()
+    if context_info:
+        temp_messages[-1]["content"] += context_info
+    
+
+    response = ollama.chat(model='llama3.2', messages=temp_messages) 
 
     messages.append(response)
     print(response.message.content)
 
 
-'''
-    response = ollama.chat(model='llama3.2', messages=messages, tools=available_function_ptr, keep_alive=-1)
-    messages.append(response.message)
-    if response.message.tool_calls:
-        for tool in response.message.tool_calls:
-            print(f"---- Thinking: I need to use {tool.function.name} ----")
-            functionToCall = available_functions[tool.function.name]
-            toolOutput = functionToCall()
 
-            messages.append({"role": "tool", "content": toolOutput, "name":tool.function.name})
-
-        response = ollama.chat(model='llama3.2', messages=messages)
-        print(response.message.content)
-        #messages.append({"role": "assistant", "content": response.message.content})
-        messages.append(response.message)
-    else:
-        print(response.message.content)
-
-'''
