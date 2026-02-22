@@ -16,9 +16,18 @@ available_functions = {
 
 available_function_ptr = [StatusOfLightsInRoom, TemperatureInRoom]
 #messages = [{"role": "system", "content": "You are a smart home assistant. Use tools only when necessary. If you use a tool, do not talk about the JSON—just use the tool."}]
-messages = [{"role": "system", "content": "You are a intelligent chatbot. You also have access to tool if you find them nessissary during conversations."}]
-
-
+#messages = [{"role": "system", "content": "You are a intelligent chatbot. You also have access to tool if you find them nessissary during conversations."}]
+'''
+messages = [{"role":"system", "content": """You are a home assistant.
+             1. Only use the tools provided to you.
+             2. If a user asks for something you cannot do with your tools, explain that you cannot do it.
+             3. Never invent new tools or output JSON manually."""}]
+'''
+messages = [{'role': 'system', 'content': """You are a helpful, friendly AI companion.
+             1. Talk to the user naturally.
+             2. You have access to tools for lights and temperature. Only use them if the user specifically asks about the room environment.
+             3. If you use a tool, do not output the JSON yourself. Just let the tool run.
+             4. If you don't have a tool for a request, just answer normall as a AI companion."""}]
 while True:
     userInput = input(">>>")
     if userInput.lower() in ['q', 'quit']: break
