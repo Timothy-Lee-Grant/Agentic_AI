@@ -61,17 +61,21 @@ while True:
             #toolOutput = functionToCall()
             context_info += f"\n(Internal System Note: {functionToCall()})"
     
-    #messages.append({"role": "user", "content": userInput})
+    messages.append({"role": "user", "content": userInput})
 
     #semi-dirty message history which will contain 'tool' knowledge, but will not continue to be added to the clean message history
-    llm_payload = messages + [{"role": "user", "content": userInput + context_info}]
+    llm_payload = messages + [{"role": "system", "content": context_info}]
     
 
     response = ollama.chat(model='llama3.2', messages=llm_payload) 
 
-    messages.append({"role": "user", "content": userInput})
+    #messages.append({"role": "user", "content": userInput})
     messages.append(response.message)
     print(response.message.content)
-
+    # --- SLIDING WINDOW ---
+    # Keep the system prompt (index 0) + the last 10 messages
+    #if len(messages) > 11:
+    #    messages = [messages[0]] + messages[-10:]
+    # ----------------------
 
 
