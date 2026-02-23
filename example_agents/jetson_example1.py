@@ -1,5 +1,4 @@
 import ollama
-#response: ChatResponse = ollama.chat(...)
 
 def StatusOfLightsInRoom():
     """Returns the state of all the lights in the user's room. Takes no arguments"""
@@ -15,20 +14,8 @@ available_functions = {
 }
 
 available_function_ptr = [StatusOfLightsInRoom, TemperatureInRoom]
-#messages = [{"role": "system", "content": "You are a smart home assistant. Use tools only when necessary. If you use a tool, do not talk about the JSON—just use the tool."}]
-#messages = [{"role": "system", "content": "You are a intelligent chatbot. You also have access to tool if you find them nessissary during conversations."}]
-'''
-messages = [{"role":"system", "content": """You are a home assistant.
-             1. Only use the tools provided to you.
-             2. If a user asks for something you cannot do with your tools, explain that you cannot do it.
-             3. Never invent new tools or output JSON manually."""}]
-'''
-messages_old = [{'role': 'system', 'content': """You are a helpful, friendly AI companion.
-             1. Talk to the user naturally.
-             2. You have access to tools for lights and temperature. Only use them if the user specifically asks about the room environment.
-             3. If you use a tool, do not output the JSON yourself. Just let the tool run.
-             4. If you don't have a tool for a request, just answer normally as a AI companion."""}]
 
+'''
 tool_determiner_prompt = [{
         "role": "system",
         "content": """Your task is to determine if a tool is required to answer the user's question.
@@ -41,9 +28,26 @@ tool_determiner_prompt = [{
         "role": "user",
         "content": ""
     }]
+'''
 
+#I don't quite feel comfortable with this change in the system prompt because this is explicitly telling the LLM what keywords to look out for. This is much more similar to programmatically using keywords to branch. 
+#Instead, I should be using the LLM to determine intent of the question to see if it matches a tool.
+tool_determiner_prompt = [{
+        "role": "system",
+        "content": """Determine if the user is asking or mentioning room conditions like 
+        heat, cold, lighting. If they mention being hot or cold, use the Temperature tool. 
+        If they mention being dark or bright, or lights, use the Lights tool."""
+    },{
+        "role": "user",
+        "content": ""
+    }]
+
+#attempting to add information about [KNOWLEDGE BASE] which gives additional information
+# this could possibly bias the llm towards strange things, but I will see....
 messages = [{"role": "system",
-             "content": "You are a friendly AI companion. Talk with the user in a happy and helpful way."}]
+             "content": """You are a friendly AI companion. Talk with the user in a happy and helpful way.
+             If the user provides [KNOWLEDGE BASE] data, use it to give a specific answer.
+             If knowledge base is given, respond to the user by telling them the information given."""}]
 
 while True:
     userInput = input(">>>")
@@ -58,18 +62,17 @@ while True:
         for tool in tool_use_llm_response.message.tool_calls:
             print(f"---- Thinking: I need to use {tool.function.name} ----")
             functionToCall = available_functions[tool.function.name]
-            #toolOutput = functionToCall()
-            context_info += f"\n(Internal System Note: {functionToCall()})"
+            context_info += f"\n[KNOWLEDGE BASE] {functionToCall()}[/[KNOWLEDGE BASE]]"
     
-    messages.append({"role": "user", "content": userInput})
-
     #semi-dirty message history which will contain 'tool' knowledge, but will not continue to be added to the clean message history
-    llm_payload = messages + [{"role": "system", "content": context_info}]
-    
+    if context_info:
+        llm_payload = messages + [{"role":"user", "content":userInput + context_info}]
+    else:
+        llm_payload = messages + [{"role": "user", "content": userInput}]
 
     response = ollama.chat(model='llama3.2', messages=llm_payload) 
 
-    #messages.append({"role": "user", "content": userInput})
+    messages.append({"role": "user", "content": userInput})
     messages.append(response.message)
     print(response.message.content)
     # --- SLIDING WINDOW ---
