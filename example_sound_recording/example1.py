@@ -5,8 +5,8 @@ import os
 
 
 FORMAT = pyaudio.paInt16
-CHANNELS = 1
-RATE = 16000
+CHANNELS = 2
+RATE = 48000
 CHUNK = 1024
 WAVE_OUTPUT = "input.wav"
 WHISPER_PATH = "/home/timothy/Desktop/whisper.cpp/build/bin/whisper-cli"
@@ -16,7 +16,7 @@ def record_audio():
     audio = pyaudio.PyAudio()
 
     stream = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE,
-                        input=True, input_device_index=2 , frames_per_buffer=CHUNK)
+                        input=True, input_device_index=24 , frames_per_buffer=CHUNK)
     
     print("Listening")
     frames = []
