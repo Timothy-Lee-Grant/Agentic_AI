@@ -39,9 +39,15 @@ def record_audio():
     audio.terminate()
 
 def transcribe():
+    # 1. Create a downsampled version for Whisper
+    # -i: input, -ar: audio rate (16k), -y: overwrite if exists
+    CONVERTED_WAVE = "input_16k.wav"
+    convert_cmd = ["ffmpeg", "-i", WAVE_OUTPUT, "-ar", "16000", "-ac", "1", CONVERTED_WAVE, "-y"]
+    subprocess.run(convert_cmd, capture_output=True)
+    
     #call the C++ binary directly
     # -nt: no time stamps, -otxt: ouput just the text
-    cmd = [WHISPER_PATH, "-m", MODEL_PATH, "-f", WAVE_OUTPUT, "-nt"]
+    cmd = [WHISPER_PATH, "-m", MODEL_PATH, "-f", CONVERTED_WAVE, "-nt"]
     result = subprocess.run(cmd, capture_output=True, text=True)
     return result.stdout.strip()
 
