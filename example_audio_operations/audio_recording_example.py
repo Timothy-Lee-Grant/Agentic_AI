@@ -11,12 +11,25 @@ CHUNK = 1024
 WAVE_OUTPUT = "input.wav"
 WHISPER_PATH = "/home/timothy/Desktop/whisper.cpp/build/bin/whisper-cli"
 MODEL_PATH = "/home/timothy/Desktop/whisper.cpp/models/ggml-base.bin"
- 
+input_device_index = None
+
+def get_usb_device_index():
+    global input_device_index
+    p = pyaudio.PyAudio()
+    for i in range(p.get_device_count()):
+        dev = p.get_device_info_by_index(i)
+        if "USB Audio" in dev['name'] or "P10S" in dev['name']:
+            p.terminate()
+            input_device_index = i
+            return i
+    p.terminate()
+    return None
+
 def record_audio():
     audio = pyaudio.PyAudio()
 
     stream = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE,
-                        input=True, input_device_index=24 , frames_per_buffer=CHUNK)
+                        input=True, input_device_index=input_device_index , frames_per_buffer=CHUNK)
     
     print("Listening")
     frames = []
@@ -52,6 +65,7 @@ def transcribe():
     return result.stdout.strip()
 
 if __name__ == "__main__":
+    get_usb_device_index()
     record_audio()
     text = transcribe()
     print(f"you said {text}") 
