@@ -199,30 +199,32 @@ def release_old(key):
 
 
 
+
 def press(key):
     global recording, should_quit
     if key == "q":
         should_quit = True
-        stop_listening()
+        stop_listening() # This will break the listen_keyboard loop
         return
 
     if key == "space":
-        if not recording:  # <-- This is the "Software Debounce"
+        if not recording:
+            # START RECORDING
             recording = True
             stop_recording_event.clear()
-            # Start the background thread
             threading.Thread(target=record_audio_worker, daemon=True).start()
-            print("[EVENT] Space Pressed - Recording Started")
-
-def release(key):
-    global recording
-    if key == "space":
-        if recording: # Ensure we were actually recording
+            print("\n[ON] Recording started... (Tap SPACE again to stop)")
+        else:
+            # STOP RECORDING
             recording = False
             stop_recording_event.set()
-            print("[EVENT] Space Released - Recording Stopped")
-            # We DON'T call stop_listening() here. 
-            # The 'until="space"' parameter in main will handle the break.
+            print("[OFF] Recording stopped.")
+            stop_listening() # This tells the main loop to proceed to transcription
+
+def release(key):
+    # We leave this empty because we don't care about the physical release anymore
+    pass
+
 
 if __name__ == "__main__":
     os.system("stty -echo") # Turn off terminal echo
@@ -233,11 +235,17 @@ if __name__ == "__main__":
             #Wait for the user to initiate a speaking command and then get their audio and have them give another command that they are done recording. 
             #with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
             #    listener.join()
-            listen_keyboard(on_press=press, on_release=release, until="space")
+            listen_keyboard(on_press=press, on_release=release)
             if should_quit:
                 break
 
             userInput = transcribe()
+
+            print(f">>> WHISPER HEARD: '{userInput}'") 
+            
+            if not userInput.strip():
+                print("!!! Nothing heard. Skipping LLM call.")
+                continue
 
             if userInput.lower() in ['q', 'quit']: break
 
