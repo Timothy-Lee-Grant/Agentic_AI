@@ -3,7 +3,8 @@ import pyaudio
 import wave
 import subprocess
 import os
-from pynput import keyboard
+#from pynput import keyboard
+from sshkeyboard import listen_keyboard
 import threading
 
 PIPER_PATH = "/home/timothy/Desktop/Agentic_AI/sound_processing/piper/piper"
@@ -11,8 +12,8 @@ MODEL_PATH_PIPER =  "/home/timothy/Desktop/Agentic_AI/sound_processing/en_US-les
 
 # Audio recording parameters
 FORMAT = pyaudio.paInt16
-CHANNELS = 1 #I think that this is going to cause a problem, but I will see. 
-RATE = 16000
+CHANNELS = 2 
+RATE = 48000
 CHUNK = 1024
 WAVE_OUTPUT = "input.wav"
 WHISPER_PATH = "/home/timothy/Desktop/whisper.cpp/build/bin/whisper-cli"
@@ -197,51 +198,74 @@ def on_release(key):
         stop_recording_event.set() #flip the 'switch' to ON
         return False # Stops listener
 
+def press(key):
+    global recording, should_quit
+    if key == "space" and not recording:
+        recording = True
+        stop_recording_event.clear()
+        threading.Thread(target=record_audio_worker).start()
+    elif key == "q":
+        global should_quit
+        should_quit = True
+        from sshkeyboard import stop_listening
+        stop_listening()
 
+def release(key):
+    global recording, should_quit
+    if key == "space":
+        recording = False
+        stop_recording_event.set()
+        from sshkeyboard import stop_listening
+        stop_listening()
 
 
 if __name__ == "__main__":
+    os.system("stty -echo") # Turn off terminal echo
+    try:
+        get_usb_device_index()
 
-    get_usb_device_index()
+        while True:
+            #Wait for the user to initiate a speaking command and then get their audio and have them give another command that they are done recording. 
+            #with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
+            #    listener.join()
+            listen_keyboard(on_press=press, on_release=release, sequential=False)
+            if should_quit:
+                break
 
-    while True:
-        #Wait for the user to initiate a speaking command and then get their audio and have them give another command that they are done recording. 
-        with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
-            listener.join()
-        if should_quit:
-            break
-        
-        userInput = transcribe()
+            userInput = transcribe()
 
-        if userInput.lower() in ['q', 'quit']: break
+            if userInput.lower() in ['q', 'quit']: break
 
-        #use LLM to determine if tool is required/helpful
-        tool_determiner_prompt[1]["content"] = userInput
-        tool_use_llm_response = ollama.chat(model='llama3.2', messages=tool_determiner_prompt, tools=available_function_ptr, keep_alive=-1)
-        
-        context_info = ""
-        if tool_use_llm_response.message.tool_calls:
-            for tool in tool_use_llm_response.message.tool_calls:
-                print(f"---- Thinking: I need to use {tool.function.name} ----")
-                functionToCall = available_functions[tool.function.name]
-                context_info += f"\n[KNOWLEDGE BASE] {functionToCall()}[/[KNOWLEDGE BASE]]"
-        
-        #semi-dirty message history which will contain 'tool' knowledge, but will not continue to be added to the clean message history
-        if context_info:
-            llm_payload = messages + [{"role":"user", "content":userInput + context_info}]
-        else:
-            llm_payload = messages + [{"role": "user", "content": userInput}]
+            #use LLM to determine if tool is required/helpful
+            tool_determiner_prompt[1]["content"] = userInput
+            tool_use_llm_response = ollama.chat(model='llama3.2', messages=tool_determiner_prompt, tools=available_function_ptr, keep_alive=-1)
+            
+            context_info = ""
+            if tool_use_llm_response.message.tool_calls:
+                for tool in tool_use_llm_response.message.tool_calls:
+                    print(f"---- Thinking: I need to use {tool.function.name} ----")
+                    functionToCall = available_functions[tool.function.name]
+                    context_info += f"\n[KNOWLEDGE BASE] {functionToCall()}[/[KNOWLEDGE BASE]]"
+            
+            #semi-dirty message history which will contain 'tool' knowledge, but will not continue to be added to the clean message history
+            if context_info:
+                llm_payload = messages + [{"role":"user", "content":userInput + context_info}]
+            else:
+                llm_payload = messages + [{"role": "user", "content": userInput}]
 
-        response = ollama.chat(model='llama3.2', messages=llm_payload) 
+            response = ollama.chat(model='llama3.2', messages=llm_payload) 
 
-        messages.append({"role": "user", "content": userInput})
-        messages.append(response.message)
-        print(response.message.content)
-        speak(response.message.content)
-        # --- SLIDING WINDOW ---
-        # Keep the system prompt (index 0) + the last 10 messages
-        #if len(messages) > 11:
-        #    messages = [messages[0]] + messages[-10:]
-        # ----------------------
+            messages.append({"role": "user", "content": userInput})
+            messages.append(response.message)
+            print(response.message.content)
+            speak(response.message.content)
+            # --- SLIDING WINDOW ---
+            # Keep the system prompt (index 0) + the last 10 messages
+            #if len(messages) > 11:
+            #    messages = [messages[0]] + messages[-10:]
+            # ----------------------
+    finally:
+        os.system("stty echo")
+
 
 
