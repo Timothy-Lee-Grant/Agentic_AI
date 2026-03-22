@@ -200,30 +200,34 @@ def release_old(key):
 
 
 
+
 def press(key):
     global recording, should_quit
+    
     if key == "q":
         should_quit = True
-        stop_listening() # This will break the listen_keyboard loop
+        stop_listening()
         return
 
     if key == "space":
         if not recording:
-            # START RECORDING
             recording = True
             stop_recording_event.clear()
+            # Start background recording
             threading.Thread(target=record_audio_worker, daemon=True).start()
-            print("\n[ON] Recording started... (Tap SPACE again to stop)")
+            print("\n[ON] Recording... (Press ENTER to stop)")
         else:
-            # STOP RECORDING
+            print("Already recording! Press ENTER to stop.")
+
+    if key == "enter":
+        if recording:
             recording = False
             stop_recording_event.set()
-            print("[OFF] Recording stopped.")
-            stop_listening() # This tells the main loop to proceed to transcription
+            print("[OFF] Stopping and processing...")
+            stop_listening() # This breaks the listen_keyboard loop to proceed to LLM
 
 def release(key):
-    # We leave this empty because we don't care about the physical release anymore
-    pass
+    pass # We ignore releases entirely now
 
 
 if __name__ == "__main__":
