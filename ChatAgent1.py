@@ -5,6 +5,7 @@ import subprocess
 import os
 #from pynput import keyboard
 from sshkeyboard import listen_keyboard
+from sshkeyboard import stop_listening
 import threading
 
 PIPER_PATH = "/home/timothy/Desktop/Agentic_AI/sound_processing/piper/piper"
@@ -175,49 +176,53 @@ def record_audio_worker():
         wf.writeframes(b''.join(frames))
     print("[REC] Saved to disk.")
 
-def on_press(key):
-    global recording, should_quit
-    if hasattr(key, 'char') and key.char == 'q':
-        print("Quitting")
-        should_quit = True
-        return False
-    
-    if key == keyboard.Key.space and not recording:
-        print("Starting recording...")
-        recording = True
-        
-        stop_recording_event.clear() #reset the 'switch' to off
-        #start background worker
-        threading.Thread(target=record_audio_worker).start()
 
-def on_release(key):
-    global recording
-    if key == keyboard.Key.space:
-        print("Stopping recording...")
-        recording = False
-        stop_recording_event.set() #flip the 'switch' to ON
-        return False # Stops listener
 
-def press(key):
+
+def press_old(key):
     global recording, should_quit
     if key == "space" and not recording:
         recording = True
         stop_recording_event.clear()
-        threading.Thread(target=record_audio_worker).start()
+        threading.Thread(target=record_audio_worker, daemon=True).start()
     elif key == "q":
         global should_quit
         should_quit = True
-        from sshkeyboard import stop_listening
         stop_listening()
 
-def release(key):
+def release_old(key):
     global recording, should_quit
     if key == "space":
         recording = False
         stop_recording_event.set()
-        from sshkeyboard import stop_listening
-        stop_listening()
 
+
+
+
+def press(key):
+    global recording, should_quit
+    if key == "q":
+        should_quit = True
+        stop_listening()
+        return
+
+    if key == "space":
+        if not recording:  # <-- This is the "Software Debounce"
+            recording = True
+            stop_recording_event.clear()
+            # Start the background thread
+            threading.Thread(target=record_audio_worker, daemon=True).start()
+            print("[EVENT] Space Pressed - Recording Started")
+
+def release(key):
+    global recording
+    if key == "space":
+        if recording: # Ensure we were actually recording
+            recording = False
+            stop_recording_event.set()
+            print("[EVENT] Space Released - Recording Stopped")
+            # We DON'T call stop_listening() here. 
+            # The 'until="space"' parameter in main will handle the break.
 
 if __name__ == "__main__":
     os.system("stty -echo") # Turn off terminal echo
@@ -228,7 +233,7 @@ if __name__ == "__main__":
             #Wait for the user to initiate a speaking command and then get their audio and have them give another command that they are done recording. 
             #with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
             #    listener.join()
-            listen_keyboard(on_press=press, on_release=release, sequential=False)
+            listen_keyboard(on_press=press, on_release=release, until="space")
             if should_quit:
                 break
 
