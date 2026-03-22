@@ -1,4 +1,21 @@
 import ollama
+import pyaudio
+import wave
+import subprocess
+import os
+
+PIPER_PATH = "/home/timothy/Desktop/Agentic_AI/sound_processing/piper/piper"
+MODEL_PATH =  "/home/timothy/Desktop/Agentic_AI/sound_processing/en_US-lessac-medium.onnx"
+
+# Audio recording parameters
+FORMAT = pyaudio.paInt16
+CHANNELS = 2
+RATE = 48000
+CHUNK = 1024
+WAVE_OUTPUT = "input.wav"
+WHISPER_PATH = "/home/timothy/Desktop/whisper.cpp/build/bin/whisper-cli"
+MODEL_PATH = "/home/timothy/Desktop/whisper.cpp/models/ggml-base.bin"
+input_device_index = None
 
 def StatusOfLightsInRoom():
     """Returns the state of all the lights in the user's room. Takes no arguments"""
@@ -15,20 +32,6 @@ available_functions = {
 
 available_function_ptr = [StatusOfLightsInRoom, TemperatureInRoom]
 
-'''
-tool_determiner_prompt = [{
-        "role": "system",
-        "content": """Your task is to determine if a tool is required to answer the user's question.
-        Look at the user's input and determine if one of the following tools is reqired.
-        If no tool fits the user's prompt, respond "No Tool Required"
-        Available Tools:
-        1. Get Temperatute:
-        2. Get Lighting Status"""
-    },{
-        "role": "user",
-        "content": ""
-    }]
-'''
 
 #I don't quite feel comfortable with this change in the system prompt because this is explicitly telling the LLM what keywords to look out for. This is much more similar to programmatically using keywords to branch. 
 #Instead, I should be using the LLM to determine intent of the question to see if it matches a tool.
@@ -50,9 +53,6 @@ messages = [{"role": "system",
              If knowledge base is given, respond to the user by telling them the information given."""}]
 
 
-PIPER_PATH = "/home/timothy/Desktop/Agentic_AI/sound_processing/piper/piper"
-MODEL_PATH =  "/home/timothy/Desktop/Agentic_AI/sound_processing/en_US-lessac-medium.onnx"
-
 def speak(text):
     print(f"Speaking {text}")
 
@@ -66,20 +66,10 @@ def speak(text):
 
 
 
-import pyaudio
-import wave
-import subprocess
-import os
 
 
-FORMAT = pyaudio.paInt16
-CHANNELS = 2
-RATE = 48000
-CHUNK = 1024
-WAVE_OUTPUT = "input.wav"
-WHISPER_PATH = "/home/timothy/Desktop/whisper.cpp/build/bin/whisper-cli"
-MODEL_PATH = "/home/timothy/Desktop/whisper.cpp/models/ggml-base.bin"
-input_device_index = None
+
+
 
 def get_usb_device_index():
     global input_device_index
@@ -132,19 +122,28 @@ def transcribe():
     result = subprocess.run(cmd, capture_output=True, text=True)
     return result.stdout.strip()
 
+'''
 if __name__ == "__main__":
     get_usb_device_index()
     record_audio()
     text = transcribe()
     print(f"you said {text}") 
 
+'''
 
 
 
-
+get_usb_device_index()
 
 while True:
-    userInput = input(">>>")
+    #userInput = input(">>>")
+    #Wait for the user to initiate a speaking command and then get their audio and have them give another command that they are done recording. 
+    textCommand = input(">>>")
+    if textCommand == 'q':
+        exit()
+    record_audio()
+    userInput = transcribe()
+
     if userInput.lower() in ['q', 'quit']: break
 
     #use LLM to determine if tool is required/helpful
