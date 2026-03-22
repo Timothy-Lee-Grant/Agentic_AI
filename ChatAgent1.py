@@ -3,14 +3,16 @@ import pyaudio
 import wave
 import subprocess
 import os
+from pynput import keyboard
+import threading
 
 PIPER_PATH = "/home/timothy/Desktop/Agentic_AI/sound_processing/piper/piper"
 MODEL_PATH_PIPER =  "/home/timothy/Desktop/Agentic_AI/sound_processing/en_US-lessac-medium.onnx"
 
 # Audio recording parameters
 FORMAT = pyaudio.paInt16
-CHANNELS = 2
-RATE = 48000
+CHANNELS = 1 #I think that this is going to cause a problem, but I will see. 
+RATE = 16000
 CHUNK = 1024
 WAVE_OUTPUT = "input.wav"
 WHISPER_PATH = "/home/timothy/Desktop/whisper.cpp/build/bin/whisper-cli"
@@ -128,16 +130,87 @@ def transcribe():
     return result.stdout.strip()
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+recording = False
+should_quit = False
+stop_recording_event = threading.Event()
+
+def record_audio_worker():
+    #This function runs in the background thread
+    audio = pyaudio.PyAudio()
+
+    stream = audio.open(format=FORMAT, channels=CHANNELS,
+                        rate=RATE, input=True, input_device_index=input_device_index,
+                        frames_per_buffer=CHUNK)
+
+    print("\n[REC] Recording... Speak now!")
+    frames = []
+
+    while not stop_recording_event.is_set():
+        data = stream.read(CHUNK)
+        frames.append(data)
+    
+    #clean up
+    stream.stop_stream()
+    stream.close()
+    audio.terminate()
+
+    #save to ssd
+    with wave.open(WAVE_OUTPUT, 'wb') as wf:
+        wf.setnchannels(CHANNELS)
+        wf.setsampwidth(audio.get_sample_size(FORMAT))
+        wf.setframerate(RATE)
+        wf.writeframes(b''.join(frames))
+    print("[REC] Saved to disk.")
+
+def on_press(key):
+    global recording, should_quit
+    if hasattr(key, 'char') and key.char == 'q':
+        print("Quitting")
+        should_quit = True
+        return False
+    
+    if key == keyboard.Key.space and not recording:
+        print("Starting recording...")
+        recording = True
+        
+        stop_recording_event.clear() #reset the 'switch' to off
+        #start background worker
+        threading.Thread(target=record_audio_worker).start()
+
+def on_release(key):
+    global recording
+    if key == keyboard.Key.space:
+        print("Stopping recording...")
+        recording = False
+        stop_recording_event.set() #flip the 'switch' to ON
+        return False # Stops listener
+
+
+
+
 if __name__ == "__main__":
 
     get_usb_device_index()
 
     while True:
         #Wait for the user to initiate a speaking command and then get their audio and have them give another command that they are done recording. 
-        textCommand = input(">>>")
-        if textCommand == 'q':
-            exit()
-        record_audio()
+        with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
+            listener.join()
+        if should_quit:
+            break
+        
         userInput = transcribe()
 
         if userInput.lower() in ['q', 'quit']: break
