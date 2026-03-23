@@ -11,6 +11,7 @@ import threading
 PIPER_PATH = "/home/timothy/Desktop/Agentic_AI/sound_processing/piper/piper"
 MODEL_PATH_PIPER =  "/home/timothy/Desktop/Agentic_AI/sound_processing/en_US-lessac-medium.onnx"
 
+llmModel = "mistral:v0.3"
 # Audio recording parameters
 FORMAT = pyaudio.paInt16
 CHANNELS = 2 
@@ -73,7 +74,12 @@ messages = [{"role": "system",
 def speak(text):
     print(f"Speaking {text}")
 
-    command = f'echo "{text}" | {PIPER_PATH} --model {MODEL_PATH_PIPER} --output_raw | aplay -r 22050 -f S16_LE -t raw -c 1 -D plughw:0,0'
+    if any('\u4e00' <= char <= '\u9fff' for char in text):
+        selected_piper_model = "/home/timothy/Desktop/Agentic_AI/sound_processing/zh_CN-huayan-medium.onnx"
+    else:
+        selected_piper_model = "/home/timothy/Desktop/Agentic_AI/sound_processing/en_US-lessac-medium.onnx"
+
+    command = f'echo "{text}" | {PIPER_PATH} --model {selected_piper_model} --output_raw | aplay -r 22050 -f S16_LE -t raw -c 1 -D plughw:0,0'
 
     subprocess.run(command, shell=True)
 
@@ -127,21 +133,9 @@ def transcribe():
     
     #call the C++ binary directly
     # -nt: no time stamps, -otxt: ouput just the text
-    cmd = [WHISPER_PATH, "-m", MODEL_PATH, "-f", CONVERTED_WAVE, "-nt"]
+    cmd = [WHISPER_PATH, "-m", MODEL_PATH, "-f", CONVERTED_WAVE, "-nt", "-l", "auto"]
     result = subprocess.run(cmd, capture_output=True, text=True)
     return result.stdout.strip()
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 recording = False
@@ -175,30 +169,6 @@ def record_audio_worker():
         wf.setframerate(RATE)
         wf.writeframes(b''.join(frames))
     print("[REC] Saved to disk.")
-
-
-
-
-def press_old(key):
-    global recording, should_quit
-    if key == "space" and not recording:
-        recording = True
-        stop_recording_event.clear()
-        threading.Thread(target=record_audio_worker, daemon=True).start()
-    elif key == "q":
-        global should_quit
-        should_quit = True
-        stop_listening()
-
-def release_old(key):
-    global recording, should_quit
-    if key == "space":
-        recording = False
-        stop_recording_event.set()
-
-
-
-
 
 
 def press(key):
@@ -237,8 +207,6 @@ if __name__ == "__main__":
 
         while True:
             #Wait for the user to initiate a speaking command and then get their audio and have them give another command that they are done recording. 
-            #with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
-            #    listener.join()
             listen_keyboard(on_press=press, on_release=release)
             if should_quit:
                 break
@@ -255,7 +223,7 @@ if __name__ == "__main__":
 
             #use LLM to determine if tool is required/helpful
             tool_determiner_prompt[1]["content"] = userInput
-            tool_use_llm_response = ollama.chat(model='llama3.2', messages=tool_determiner_prompt, tools=available_function_ptr, keep_alive=-1)
+            tool_use_llm_response = ollama.chat(model=llmModel, messages=tool_determiner_prompt, tools=available_function_ptr, keep_alive=-1)
             
             context_info = ""
             if tool_use_llm_response.message.tool_calls:
@@ -270,7 +238,7 @@ if __name__ == "__main__":
             else:
                 llm_payload = messages + [{"role": "user", "content": userInput}]
 
-            response = ollama.chat(model='llama3.2', messages=llm_payload) 
+            response = ollama.chat(model=llmModel, messages=llm_payload) 
 
             messages.append({"role": "user", "content": userInput})
             messages.append(response.message)
