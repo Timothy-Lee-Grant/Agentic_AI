@@ -3,7 +3,6 @@ import pyaudio
 import wave
 import subprocess
 import os
-#from pynput import keyboard
 from sshkeyboard import listen_keyboard
 from sshkeyboard import stop_listening
 import threading
@@ -11,7 +10,8 @@ import threading
 PIPER_PATH = "/home/timothy/Desktop/Agentic_AI/sound_processing/piper/piper"
 MODEL_PATH_PIPER =  "/home/timothy/Desktop/Agentic_AI/sound_processing/en_US-lessac-medium.onnx"
 
-llmModel = "mistral:v0.3"
+#llmModel = "mistral:v0.3"
+llmModel = "qwen2.5:7b"
 # Audio recording parameters
 FORMAT = pyaudio.paInt16
 CHANNELS = 2 
@@ -97,32 +97,6 @@ def get_usb_device_index():
             return i
     p.terminate()
     return None
-
-def record_audio():
-    audio = pyaudio.PyAudio()
-
-    stream = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE,
-                        input=True, input_device_index=input_device_index , frames_per_buffer=CHUNK)
-    
-    print("Listening")
-    frames = []
-
-    try:
-        while True:
-            data = stream.read(CHUNK)
-            frames.append(data)
-    except KeyboardInterrupt:
-        print("Finishing")
-    
-    with wave.open(WAVE_OUTPUT, 'wb') as wf:
-        wf.setnchannels(CHANNELS)
-        wf.setsampwidth(audio.get_sample_size(FORMAT))
-        wf.setframerate(RATE)
-        wf.writeframes(b''.join(frames))
-    
-    stream.stop_stream()
-    stream.close()
-    audio.terminate()
 
 def transcribe():
     # 1. Create a downsampled version for Whisper
