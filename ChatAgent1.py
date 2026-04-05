@@ -6,6 +6,7 @@ import os
 from sshkeyboard import listen_keyboard
 from sshkeyboard import stop_listening
 import threading
+from collections import deque
 
 PIPER_PATH = "/home/timothy/Desktop/Agentic_AI/sound_processing/piper/piper"
 MODEL_PATH_PIPER =  "/home/timothy/Desktop/Agentic_AI/sound_processing/en_US-lessac-medium.onnx"
@@ -21,6 +22,8 @@ WAVE_OUTPUT = "input.wav"
 WHISPER_PATH = "/home/timothy/Desktop/whisper.cpp/build/bin/whisper-cli"
 MODEL_PATH = "/home/timothy/Desktop/whisper.cpp/models/ggml-base.bin"
 input_device_index = None
+
+myAudioQueue = deque()
 
 def StatusOfLightsInRoom():
     """Returns the state of all the lights in the user's room. Takes no arguments"""
@@ -83,7 +86,18 @@ def speak(text):
 
     subprocess.run(command, shell=True)
 
+def constantly_speak():
+    while True:
+        if myAudioQueue:
+            sentence = myAudioQueue.popleft()
+            if any('\u4e00' <= char <= '\u9fff' for char in sentence):
+                selected_piper_model = "/home/timothy/Desktop/Agentic_AI/sound_processing/zh_CN-huayan-medium.onnx"
+            else:
+                selected_piper_model = "/home/timothy/Desktop/Agentic_AI/sound_processing/en_US-lessac-medium.onnx"
 
+            command = f'echo "{sentence}" | {PIPER_PATH} --model {selected_piper_model} --output_raw | aplay -r 22050 -f S16_LE -t raw -c 1 -D plughw:0,0'
+
+            subprocess.run(command, shell=True)
 
 
 def get_usb_device_index():
@@ -178,6 +192,7 @@ if __name__ == "__main__":
     os.system("stty -echo") # Turn off terminal echo
     try:
         get_usb_device_index()
+        threading.Thread(target = constantly_speak, daemon=True).start()
 
         while True:
             #Wait for the user to initiate a speaking command and then get their audio and have them give another command that they are done recording. 
@@ -212,12 +227,26 @@ if __name__ == "__main__":
             else:
                 llm_payload = messages + [{"role": "user", "content": userInput}]
 
-            response = ollama.chat(model=llmModel, messages=llm_payload) 
+            response_stream = ollama.chat(model=llmModel, messages=llm_payload, stream=True) 
+
+            full_response = ""
+            sentence_builder = ""
+
+            for chunk in response_stream:
+                word = chunk['message']['content']
+                if word:
+                    full_response += word
+                    sentence_builder += word
+                    if ('.', '!', '?', '。', '！', '？', '\n') in word:
+                        myAudioQueue.append(sentence_builder)
+                        sentence_builder = ""
+
+
 
             messages.append({"role": "user", "content": userInput})
-            messages.append(response.message)
-            print(response.message.content)
-            speak(response.message.content)
+            messages.append(full_response)
+            print(full_response)
+            #speak(response.message.content)
             # --- SLIDING WINDOW ---
             # Keep the system prompt (index 0) + the last 10 messages
             #if len(messages) > 11:
