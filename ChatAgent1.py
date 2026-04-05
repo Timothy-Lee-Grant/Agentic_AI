@@ -6,7 +6,7 @@ import os
 from sshkeyboard import listen_keyboard
 from sshkeyboard import stop_listening
 import threading
-from collections import deque
+import queue
 
 PIPER_PATH = "/home/timothy/Desktop/Agentic_AI/sound_processing/piper/piper"
 MODEL_PATH_PIPER =  "/home/timothy/Desktop/Agentic_AI/sound_processing/en_US-lessac-medium.onnx"
@@ -23,7 +23,7 @@ WHISPER_PATH = "/home/timothy/Desktop/whisper.cpp/build/bin/whisper-cli"
 MODEL_PATH = "/home/timothy/Desktop/whisper.cpp/models/ggml-base.bin"
 input_device_index = None
 
-myAudioQueue = deque()
+myAudioQueue = queue.Queue()
 
 def StatusOfLightsInRoom():
     """Returns the state of all the lights in the user's room. Takes no arguments"""
@@ -88,16 +88,18 @@ def speak(text):
 
 def constantly_speak():
     while True:
-        if myAudioQueue:
-            sentence = myAudioQueue.popleft()
-            if any('\u4e00' <= char <= '\u9fff' for char in sentence):
-                selected_piper_model = "/home/timothy/Desktop/Agentic_AI/sound_processing/zh_CN-huayan-medium.onnx"
-            else:
-                selected_piper_model = "/home/timothy/Desktop/Agentic_AI/sound_processing/en_US-lessac-medium.onnx"
+        sentence = myAudioQueue.get()
 
-            command = f'echo "{sentence}" | {PIPER_PATH} --model {selected_piper_model} --output_raw | aplay -r 22050 -f S16_LE -t raw -c 1 -D plughw:0,0'
+        if any('\u4e00' <= char <= '\u9fff' for char in sentence):
+            selected_piper_model = "/home/timothy/Desktop/Agentic_AI/sound_processing/zh_CN-huayan-medium.onnx"
+        else:
+            selected_piper_model = "/home/timothy/Desktop/Agentic_AI/sound_processing/en_US-lessac-medium.onnx"
 
-            subprocess.run(command, shell=True)
+        command = f'echo "{sentence}" | {PIPER_PATH} --model {selected_piper_model} --output_raw | aplay -r 22050 -f S16_LE -t raw -c 1 -D plughw:0,0'
+
+        subprocess.run(command, shell=True)
+
+        myAudioQueue.task_done()
 
 
 def get_usb_device_index():
@@ -232,19 +234,27 @@ if __name__ == "__main__":
             full_response = ""
             sentence_builder = ""
 
+            print(">>> AGENT THINKING: ", end="", flush=True)
+
             for chunk in response_stream:
                 word = chunk['message']['content']
                 if word:
+                    print(word, end="", flush=True)
                     full_response += word
                     sentence_builder += word
-                    if ('.', '!', '?', '。', '！', '？', '\n') in word:
-                        myAudioQueue.append(sentence_builder)
+                    if any(punct in word for punct in ('.', '!', '?', '。', '！', '？', '\n')) or len(sentence_builder)>100:
+                        stripped_sentence = sentence_builder.strip()
+                        myAudioQueue.put(stripped_sentence)
                         sentence_builder = ""
 
+            if sentence_builder:
+                stripped_sentence = sentence_builder.strip()
+                myAudioQueue.put(stripped_sentence)
+                sentence_builder = ""
 
 
             messages.append({"role": "user", "content": userInput})
-            messages.append(full_response)
+            messages.append({"role": "assistant", "content": full_response})
             print(full_response)
             #speak(response.message.content)
             # --- SLIDING WINDOW ---
